@@ -1,0 +1,22 @@
+{
+  "name": "dealpulse",
+  "version": "1.0.0",
+  "description": "AI Deal Health Monitor for SAP Sales Cloud — Lead-to-Cash companion on SAP BTP",
+  "main": "srv/dealpulse-service.js",
+  "scripts": {
+    "start": "node srv/dealpulse-service.js",
+    "dev": "node --watch srv/dealpulse-service.js",
+    "generate:interactions": "node scripts/generate-interactions.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@sap/cds": "^9.8.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "papaparse": "^5.5.3"
+  }
+}
