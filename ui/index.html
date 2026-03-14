@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealPulse — AI Deal Health Monitor</title>
+  <style>
+    /* ── Design tokens ────────────────────────────────────────────────────── */
+    :root {
+      --blue:       #0070F2;
+      --blue-dk:    #0057BC;
+      --blue-lt:    #EAF2FF;
+      --red:        #D93025;
+      --red-lt:     #FDECEA;
+      --amber:      #F57C00;
+      --amber-lt:   #FFF3E0;
+      --green:      #188038;
+      --green-lt:   #E8F5E9;
+      --bg:         #F5F6F7;
+      --surface:    #FFFFFF;
+      --border:     #E5E5E5;
+      --text:       #32363A;
+      --text-2:     #6A6D70;
+      --text-3:     #9EA0A0;
+      --header-h:   60px;
+      --tab-h:      44px;
+      --panel-w:    500px;
+      --r:          6px;
+      --shadow:     0 1px 4px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+      --shadow-lg:  -4px 0 24px rgba(0,0,0,0.12);
+    }
+
+    /* ── Reset ────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 200;
+      height: var(--header-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .hdr-inner {
+      max-width: 1440px; margin: 0 auto; height: 100%;
+      padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--blue); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff; letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+    .logo-name { font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; }
+    .logo-sub  { display: block; font-size: 11px; color: var(--text-2); margin-top: 1px; }
+    .live-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 11px;
+      background: var(--green-lt); color: var(--green);
+      border: 1px solid #A5D6A7; border-radius: 20px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap;
+    }
+    .live-badge::before {
+      content: ''; width: 6px; height: 6px;
+      background: var(--green); border-radius: 50%;
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── Tabs ─────────────────────────────────────────────────────────────── */
+    .tabs {
+      position: sticky; top: var(--header-h); z-index: 190;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; padding: 0 24px; gap: 4px;
+    }
+    .tab {
+      height: var(--tab-h); padding: 0 18px;
+      font-size: 13.5px; font-weight: 500; color: var(--text-2);
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--blue); }
+    .tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+    /* ── Main ─────────────────────────────────────────────────────────────── */
+    main {
+      max-width: 1440px; margin: 0 auto; padding: 20px 24px;
+      min-height: calc(100vh - var(--header-h) - var(--tab-h));
+      transition: padding-right .28s cubic-bezier(.4,0,.2,1);
+    }
+    body.panel-open main { padding-right: calc(var(--panel-w) + 28px); }
+
+    /* ── Stats bar ────────────────────────────────────────────────────────── */
+    .stats-bar {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 12px; margin-bottom: 18px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 14px 18px; box-shadow: var(--shadow);
+    }
+    .stat-label {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--text-2); margin-bottom: 5px;
+    }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+    .stat-sub   { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+    .stat-card.c-blue  .stat-value { color: var(--blue); }
+    .stat-card.c-red   .stat-value { color: var(--red); }
+    .stat-card.c-green .stat-value { color: var(--green); }
+
+    /* ── Table wrap ───────────────────────────────────────────────────────── */
+    .table-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden;
+    }
+    .table-hdr {
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .table-title-row { display: flex; align-items: center; gap: 8px; }
+    .table-title { font-size: 13px; font-weight: 600; }
+    .pill {
+      font-size: 11px; color: var(--text-2);
+      background: var(--bg); border-radius: 20px;
+      padding: 2px 9px;
+    }
+    .search-input {
+      height: 32px; padding: 0 10px;
+      border: 1px solid var(--border); border-radius: 4px;
+      font-size: 13px; color: var(--text); background: var(--bg);
+      outline: none; transition: border-color .15s; width: 260px;
+    }
+    .search-input:focus { border-color: var(--blue); }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      padding: 9px 12px; text-align: left;
+      font-size: 10.5px; font-weight: 700; color: var(--text-2);
+      text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface); white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover   { background: var(--blue-lt); }
+    tbody tr.sel     { background: #D6E8FF; }
+    tbody td { padding: 9px 12px; white-space: nowrap; }
+    .td-id   { font-family: "SF Mono","Fira Code",monospace; font-size: 11px; color: var(--text-3); }
+    .td-acct { font-weight: 600; }
+    .td-agent{ color: var(--text-2); }
+
+    /* ── Risk badge ───────────────────────────────────────────────────────── */
+    .rbadge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 38px; padding: 3px 8px;
+      border-radius: 12px; font-size: 12px; font-weight: 700;
+    }
+    .rbadge.high   { background: var(--red-lt);   color: var(--red); }
+    .rbadge.medium { background: var(--amber-lt); color: var(--amber); }
+    .rbadge.low    { background: var(--green-lt); color: var(--green); }
+
+    /* ── Stage chip ───────────────────────────────────────────────────────── */
+    .schip {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 10px; font-size: 11px; font-weight: 600;
+    }
+    .schip.Won        { background: var(--green-lt); color: var(--green); }
+    .schip.Lost       { background: var(--red-lt);   color: var(--red); }
+    .schip.Engaging   { background: var(--blue-lt);  color: var(--blue); }
+    .schip.Prospecting{ background: var(--amber-lt); color: var(--amber); }
+
+    /* ── Sentiment chip ───────────────────────────────────────────────────── */
+    .senti {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 500;
+    }
+    .senti-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .senti.positive { color: var(--green); } .senti.positive .senti-dot { background: var(--green); }
+    .senti.neutral  { color: var(--amber); } .senti.neutral  .senti-dot { background: var(--amber); }
+    .senti.negative { color: var(--red);   } .senti.negative .senti-dot { background: var(--red); }
+
+    /* ── Skeleton ─────────────────────────────────────────────────────────── */
+    .skel {
+      background: linear-gradient(90deg, #efefef 25%, #e3e3e3 50%, #efefef 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 3px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .skel-h  { height: 14px; }
+    .skel-lg { height: 26px; }
+    .skel-badge { height: 22px; width: 38px; border-radius: 12px; }
+
+    /* ── Error / empty ────────────────────────────────────────────────────── */
+    .err-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 64px 24px; text-align: center;
+    }
+    .err-icon  { font-size: 40px; margin-bottom: 12px; }
+    .err-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .err-msg   { font-size: 13px; color: var(--text-2); max-width: 380px; line-height: 1.55; }
+    .retry-btn {
+      margin-top: 16px; padding: 8px 20px;
+      background: var(--blue); color: #fff;
+      border-radius: 4px; font-size: 13px; font-weight: 600;
+      transition: background .15s;
+    }
+    .retry-btn:hover { background: var(--blue-dk); }
+
+    /* ── Detail panel ─────────────────────────────────────────────────────── */
+    .detail-panel {
+      position: fixed;
+      top: calc(var(--header-h) + var(--tab-h)); right: 0; bottom: 0;
+      width: var(--panel-w);
+      background: var(--surface); border-left: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      transform: translateX(calc(100% + 1px));
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+      overflow-y: auto; z-index: 150;
+      display: flex; flex-direction: column;
+    }
+    .detail-panel.open { transform: translateX(0); }
+
+    /* Panel header */
+    .panel-hdr {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      flex-shrink: 0;
+    }
+    .panel-hdr-left { min-width: 0; }
+    .panel-oid   { font-family:"SF Mono","Fira Code",monospace; font-size:11px; color:var(--text-3); }
+    .panel-acct  { font-size:16px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .panel-close {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-2); font-size: 18px; flex-shrink: 0;
+      transition: background .15s;
+    }
+    .panel-close:hover { background: var(--bg); color: var(--text); }
+    .panel-body  { padding: 18px; flex: 1; }
+
+    /* Gauge */
+    .gauge-row {
+      display: flex; align-items: center; gap: 18px;
+      padding: 16px; margin-bottom: 18px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--r);
+    }
+    .gauge-svg { width: 108px; height: 108px; flex-shrink: 0; }
+    .gauge-table { flex: 1; min-width: 0; }
+    .gtr {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 0; font-size: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .gtr:last-child { border-bottom: none; }
+    .gtr-l { color: var(--text-2); }
+    .gtr-v { font-weight: 600; }
+
+    /* Sentiment */
+    .sec-title {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--text-2); margin-bottom: 10px;
+    }
+    .sent-section { margin-bottom: 18px; }
+    .sent-row { display: flex; align-items: center; gap: 10px; }
+    .sent-label {
+      font-size: 14px; font-weight: 700; min-width: 68px;
+    }
+    .sent-label.positive { color: var(--green); }
+    .sent-label.neutral  { color: var(--amber); }
+    .sent-label.negative { color: var(--red);   }
+    .conf-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .conf-fill  { height: 100%; border-radius: 4px; transition: width .5s ease; }
+    .conf-fill.positive { background: var(--green); }
+    .conf-fill.neutral  { background: var(--amber); }
+    .conf-fill.negative { background: var(--red);   }
+    .conf-pct   { font-size: 12px; font-weight: 600; color: var(--text-2); min-width: 33px; text-align: right; }
+    .sent-summary { margin-top: 8px; font-size: 12px; color: var(--text-2); font-style: italic; line-height: 1.5; }
+
+    /* Meta grid */
+    .meta-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px;
+    }
+    .meta-item { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; }
+    .meta-lbl  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-3); margin-bottom: 3px; }
+    .meta-val  { font-size: 13px; font-weight: 600; }
+
+    /* Coaching */
+    .coaching {
+      background: var(--blue-lt); border: 1px solid #BBDEFB;
+      border-left: 4px solid var(--blue);
+      border-radius: var(--r); padding: 14px 16px; margin-bottom: 20px;
+    }
+    .coaching-hdr {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--blue);
+      display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+    }
+    .coaching-hdr svg { flex-shrink: 0; }
+    .coaching-text { font-size: 13px; color: var(--text); line-height: 1.65; }
+    .coaching-text h2 { font-size: 13px; font-weight: 700; color: var(--blue-dk); margin: 8px 0 4px; }
+    .coaching-text h2:first-child { margin-top: 0; }
+    .coaching-text h3 { font-size: 12px; font-weight: 700; color: var(--blue-dk); margin: 8px 0 4px; text-transform: uppercase; letter-spacing: .4px; }
+    .coaching-text h3:first-child { margin-top: 0; }
+    .coaching-text strong { font-weight: 700; color: var(--text); }
+    .coaching-text ul { margin: 6px 0 6px 16px; padding: 0; }
+    .coaching-text li { margin-bottom: 4px; }
+
+    /* Timeline */
+    .tl { position: relative; }
+    .tl::before {
+      content: ''; position: absolute; left: 15px; top: 8px; bottom: 8px;
+      width: 2px; background: var(--border);
+    }
+    .tl-item { display: flex; gap: 14px; margin-bottom: 14px; position: relative; }
+    .tl-dot {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--surface); border: 2px solid var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; position: relative; z-index: 1;
+      font-size: 9.5px; font-weight: 700; color: var(--blue);
+    }
+    .tl-dot.call { border-color: var(--green); color: var(--green); }
+    .tl-content {
+      flex: 1; min-width: 0;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 12px;
+    }
+    .tl-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-bottom: 6px;
+    }
+    .tl-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+    .tl-type.call_transcript { color: var(--green); }
+    .tl-type.meeting_note    { color: var(--blue);  }
+    .tl-date { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+    .tl-text {
+      font-size: 12.5px; color: var(--text); line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .tl-parts { margin-top: 6px; font-size: 11px; color: var(--text-3); }
+
+    /* Panel loading / spinner */
+    .p-loading {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 64px 24px; gap: 16px;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border); border-top-color: var(--blue);
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .p-loading-txt { font-size: 13px; color: var(--text-2); }
+
+    /* ── Summary ──────────────────────────────────────────────────────────── */
+    .sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .sum-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); box-shadow: var(--shadow); padding: 18px;
+    }
+    .sum-card.full { grid-column: 1 / -1; }
+    .sum-card-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--text-2); margin-bottom: 16px;
+    }
+
+    /* CSS bar chart */
+    .bchart { display: flex; flex-direction: column; gap: 11px; }
+    .brow   { display: flex; align-items: center; gap: 10px; }
+    .brow-lbl { font-size: 12.5px; font-weight: 500; width: 95px; flex-shrink: 0; }
+    .btrack {
+      flex: 1; height: 24px; background: var(--bg);
+      border-radius: 4px; overflow: hidden; border: 1px solid var(--border);
+    }
+    .bfill {
+      height: 100%; display: flex; align-items: center; padding-left: 8px;
+      font-size: 11px; font-weight: 700; color: #fff;
+      border-radius: 4px; transition: width .6s ease; min-width: 0;
+    }
+    .bfill.Engaging    { background: var(--blue); }
+    .bfill.Prospecting { background: var(--amber); }
+    .bfill.Won         { background: var(--green); }
+    .bfill.Lost        { background: var(--red); }
+    .brow-val { font-size: 12px; font-weight: 600; color: var(--text-2); width: 44px; text-align: right; flex-shrink: 0; }
+
+    /* Top risk list */
+    .risk-list { display: flex; flex-direction: column; gap: 8px; }
+    .rl-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--r);
+      cursor: pointer; transition: background .1s;
+    }
+    .rl-item:hover { background: var(--blue-lt); }
+    .rl-rank { font-size: 11px; font-weight: 700; color: var(--text-3); width: 16px; flex-shrink: 0; }
+    .rl-info { flex: 1; min-width: 0; }
+    .rl-acct { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rl-sub  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+    /* ── Backdrop ─────────────────────────────────────────────────────────── */
+    #backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.3); z-index: 140; opacity: 0;
+      transition: opacity .28s;
+    }
+    #backdrop.on { display: block; opacity: 1; }
+
+    /* ── Responsive ───────────────────────────────────────────────────────── */
+    @media (max-width: 1023px) {
+      body.panel-open main { padding-right: 24px; }
+      .detail-panel { width: 100%; top: 0; z-index: 250; }
+    }
+    @media (max-width: 767px) {
+      :root { --header-h: 56px; }
+      main { padding: 12px 14px; }
+      .hdr-inner { padding: 0 14px; }
+      .tabs { padding: 0 14px; }
+      .logo-sub { display: none; }
+      .stats-bar { grid-template-columns: 1fr 1fr; }
+      .sum-grid  { grid-template-columns: 1fr; }
+      .meta-grid { grid-template-columns: 1fr; }
+      .search-input { width: 180px; }
+    }
+    @media (max-width: 480px) {
+      .stats-bar { grid-template-columns: 1fr; }
+      .search-input { width: 140px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="hdr-inner">
+    <div class="logo">
+      <div class="logo-mark">DP</div>
+      <div>
+        <span class="logo-name">DealPulse</span>
+        <span class="logo-sub">AI Deal Health Monitor &middot; SAP Sales Cloud</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+      <span class="live-badge">Live on BTP</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Tabs ───────────────────────────────────────────────────────────────── -->
+<nav id="tabs" class="tabs">
+  <button class="tab active" data-view="pipeline">Pipeline</button>
+  <button class="tab"        data-view="summary">Summary</button>
+</nav>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<main id="main"></main>
+
+<!-- ── Backdrop (mobile only) ─────────────────────────────────────────────── -->
+<div id="backdrop"></div>
+
+<!-- ── Detail panel ───────────────────────────────────────────────────────── -->
+<aside id="panel" class="detail-panel" role="dialog" aria-modal="true" aria-label="Deal detail"></aside>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   Constants
+   ════════════════════════════════════════════════════════════════════════════ */
+const API = 'https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com';
+
+/* ════════════════════════════════════════════════════════════════════════════
+   State
+   ════════════════════════════════════════════════════════════════════════════ */
+const S = {
+  view:        'pipeline',
+  pipeline:    null,   // { count, deals[] }
+  summary:     null,   // summary object
+  dealCache:   {},     // id → full deal
+  selectedId:  null,
+  searchQuery: '',
+  loading:     { pipeline: false, summary: false, deal: false },
+  error:       { pipeline: null,  summary: null,  deal: null  },
+};
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DOM refs
+   ════════════════════════════════════════════════════════════════════════════ */
+const $main     = document.getElementById('main');
+const $panel    = document.getElementById('panel');
+const $backdrop = document.getElementById('backdrop');
+const $tabs     = document.getElementById('tabs');
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Utilities
+   ════════════════════════════════════════════════════════════════════════════ */
+function riskCls(score) {
+  return score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+}
+
+function fmtCurrency(n) {
+  if (!n || n === 0) return '—';
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${Number(n).toLocaleString()}`;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return isNaN(dt) ? d : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str ?? '';
+  return d.innerHTML;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Markdown renderer (same implementation as SkillPilot, extended for Claude
+   coaching output which uses single # headings)
+   Supports: # h1 → <h2>, ## h2 → <h3>, - bullets → <ul><li>, **bold** → <strong>
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderMarkdown(text) {
+  const lines = esc(text).split('\n');
+  const html  = [];
+  let inList  = false;
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    // # Heading (single) → <h2>
+    if (/^#(?!#)\s+/.test(line)) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h2>${line.replace(/^#\s+/, '')}</h2>`);
+      continue;
+    }
+
+    // ## Heading → <h3>
+    if (/^##\s+/.test(line)) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h3>${line.replace(/^##\s+/, '')}</h3>`);
+      continue;
+    }
+
+    // - Bullet → <li>
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList) { html.push('<ul>'); inList = true; }
+      html.push(`<li>${applyInline(line.replace(/^[-*]\s+/, ''))}</li>`);
+      continue;
+    }
+
+    // Close open list
+    if (inList) { html.push('</ul>'); inList = false; }
+
+    // Blank line → spacer
+    if (line.trim() === '') { html.push('<br>'); continue; }
+
+    // Normal line
+    html.push(`<span>${applyInline(line)}</span><br>`);
+  }
+
+  if (inList) html.push('</ul>');
+  return html.join('');
+}
+
+function applyInline(text) {
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SVG Risk Gauge
+   ════════════════════════════════════════════════════════════════════════════ */
+function gauge(score) {
+  const r    = 46;
+  const circ = 2 * Math.PI * r;          // ≈ 289.0
+  const prog = (score / 100) * circ;
+  const col  = score >= 70 ? '#D93025' : score >= 40 ? '#F57C00' : '#188038';
+  return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="#E5E5E5" stroke-width="10"/>
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${col}" stroke-width="10"
+      stroke-dasharray="${prog.toFixed(2)} ${circ.toFixed(2)}"
+      stroke-linecap="round" transform="rotate(-90 60 60)"/>
+    <text x="60" y="57" text-anchor="middle" dominant-baseline="middle"
+      font-size="28" font-weight="700" fill="${col}"
+      font-family="-apple-system,BlinkMacSystemFont,sans-serif">${score}</text>
+    <text x="60" y="79" text-anchor="middle" dominant-baseline="middle"
+      font-size="9" fill="#9EA0A0" letter-spacing="0.6"
+      font-family="-apple-system,BlinkMacSystemFont,sans-serif">RISK SCORE</text>
+  </svg>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   API
+   ════════════════════════════════════════════════════════════════════════════ */
+async function apiFetch(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+  return res.json();
+}
+
+async function loadPipeline() {
+  S.loading.pipeline = true; S.error.pipeline = null;
+  renderView();
+  try {
+    S.pipeline = await apiFetch('/api/pipeline');
+  } catch (e) {
+    S.error.pipeline = e.message;
+  } finally {
+    S.loading.pipeline = false;
+    renderView();
+  }
+}
+
+async function loadSummary() {
+  S.loading.summary = true; S.error.summary = null;
+  renderSummary();
+  try {
+    S.summary = await apiFetch('/api/summary');
+  } catch (e) {
+    S.error.summary = e.message;
+  } finally {
+    S.loading.summary = false;
+    renderSummary();
+  }
+}
+
+async function loadDeal(id) {
+  if (S.dealCache[id]) { renderPanel(S.dealCache[id]); return; }
+  S.loading.deal = true; S.error.deal = null;
+  renderPanelLoading();
+  try {
+    const data = await apiFetch(`/api/deal/${id}`);
+    S.dealCache[id] = data;
+    renderPanel(data);
+  } catch (e) {
+    S.error.deal = e.message;
+    renderPanelError(e.message);
+  } finally {
+    S.loading.deal = false;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   View / panel control
+   ════════════════════════════════════════════════════════════════════════════ */
+function switchView(view) {
+  S.view = view;
+  $tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  renderView();
+  if (view === 'summary' && !S.summary && !S.loading.summary) loadSummary();
+}
+
+function openDeal(id) {
+  S.selectedId = id;
+  $panel.classList.add('open');
+  document.body.classList.add('panel-open');
+  if (window.innerWidth < 1024) $backdrop.classList.add('on');
+  $main.querySelectorAll('tbody tr').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
+  loadDeal(id);
+}
+
+function closePanel() {
+  S.selectedId = null;
+  $panel.classList.remove('open');
+  $backdrop.classList.remove('on');
+  document.body.classList.remove('panel-open');
+  $main.querySelectorAll('tbody tr.sel').forEach(r => r.classList.remove('sel'));
+}
+
+function renderView() {
+  if (S.view === 'pipeline') renderPipeline();
+  else renderSummary();
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Pipeline view
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderPipeline() {
+  if (S.loading.pipeline) { $main.innerHTML = pipelineSkeleton(); return; }
+  if (S.error.pipeline)   { $main.innerHTML = errState('pipeline'); bindRetry(() => loadPipeline()); return; }
+  if (!S.pipeline)        return;
+
+  const all  = S.pipeline.deals;
+  const q    = S.searchQuery.toLowerCase();
+  const rows = q
+    ? all.filter(d =>
+        (d.account    || '').toLowerCase().includes(q) ||
+        (d.sales_agent|| '').toLowerCase().includes(q) ||
+        (d.product    || '').toLowerCase().includes(q) ||
+        (d.opportunity_id || '').toLowerCase().includes(q))
+    : all;
+
+  // Stats
+  const total    = all.length;
+  const highRisk = all.filter(d => d.risk_score >= 70).length;
+  const active   = all.filter(d => ['Engaging','Prospecting'].includes(d.deal_stage)).length;
+  const avgRisk  = total ? Math.round(all.reduce((s, d) => s + (d.risk_score || 0), 0) / total) : 0;
+
+  $main.innerHTML = `
+    <div class="stats-bar">
+      <div class="stat-card c-blue">
+        <div class="stat-label">Total Deals</div>
+        <div class="stat-value">${total.toLocaleString()}</div>
+        <div class="stat-sub">with interaction data</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Pipeline</div>
+        <div class="stat-value">${active.toLocaleString()}</div>
+        <div class="stat-sub">Engaging + Prospecting</div>
+      </div>
+      <div class="stat-card c-red">
+        <div class="stat-label">High Risk</div>
+        <div class="stat-value">${highRisk.toLocaleString()}</div>
+        <div class="stat-sub">risk score &ge; 70</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Risk Score</div>
+        <div class="stat-value">${avgRisk}</div>
+        <div class="stat-sub">across all deals</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-hdr">
+        <div class="table-title-row">
+          <span class="table-title">Deal Pipeline</span>
+          <span class="pill">${rows.length.toLocaleString()} deals</span>
+        </div>
+        <input id="search" class="search-input" type="search"
+          placeholder="Search account, agent, product&hellip;"
+          value="${esc(S.searchQuery)}" autocomplete="off">
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Risk</th>
+              <th>Deal ID</th>
+              <th>Account</th>
+              <th>Sales Agent</th>
+              <th>Product</th>
+              <th>Stage</th>
+              <th>Close Date</th>
+              <th>Value</th>
+              <th>Sentiment</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length === 0
+              ? `<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text-2);">
+                  No deals match "<strong>${esc(S.searchQuery)}</strong>"
+                </td></tr>`
+              : rows.map(d => `
+                <tr data-id="${d.opportunity_id}"${S.selectedId === d.opportunity_id ? ' class="sel"' : ''}>
+                  <td><span class="rbadge ${riskCls(d.risk_score)}">${d.risk_score}</span></td>
+                  <td><span class="td-id">${esc(d.opportunity_id)}</span></td>
+                  <td><span class="td-acct">${esc(d.account)}</span></td>
+                  <td><span class="td-agent">${esc(d.sales_agent)}</span></td>
+                  <td>${esc(d.product)}</td>
+                  <td><span class="schip ${d.deal_stage}">${esc(d.deal_stage)}</span></td>
+                  <td>${fmtDate(d.close_date)}</td>
+                  <td>${fmtCurrency(d.close_value)}</td>
+                  <td>
+                    <span class="senti ${d.sentiment_label || 'neutral'}">
+                      <span class="senti-dot"></span>${cap(d.sentiment_label || 'unknown')}
+                    </span>
+                  </td>
+                </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // Search
+  document.getElementById('search').addEventListener('input', e => {
+    S.searchQuery = e.target.value;
+    renderPipeline();
+    const el = document.getElementById('search');
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  });
+
+  // Row clicks
+  $main.querySelectorAll('tbody tr[data-id]').forEach(r =>
+    r.addEventListener('click', () => openDeal(r.dataset.id)));
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Summary view
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderSummary() {
+  if (S.loading.summary) {
+    $main.innerHTML = `<div class="sum-grid">
+      <div class="sum-card full" style="min-height:180px;display:flex;align-items:center;justify-content:center;gap:14px;">
+        <div class="spinner"></div>
+        <span style="color:var(--text-2);font-size:13px;">Loading pipeline summary&hellip;</span>
+      </div></div>`;
+    return;
+  }
+  if (S.error.summary) { $main.innerHTML = errState('summary'); bindRetry(() => loadSummary()); return; }
+  if (!S.summary) return;
+
+  const s       = S.summary;
+  const stages  = s.deals_by_stage  || {};
+  const revByStage = s.revenue_by_stage || {};
+  const maxStage = Math.max(...Object.values(stages), 1);
+  const maxRev   = Math.max(...Object.values(revByStage).filter(v => v > 0), 1);
+
+  // Derive top high-risk from pipeline if available, fall back to summary
+  const topRisk = (S.pipeline?.deals || [])
+    .filter(d => d.risk_score >= 70)
+    .slice(0, 5);
+
+  const stageOrder = ['Engaging','Prospecting','Won','Lost'];
+
+  $main.innerHTML = `
+    <div class="stats-bar" style="margin-bottom:16px;">
+      <div class="stat-card c-blue">
+        <div class="stat-label">Total Deals</div>
+        <div class="stat-value">${(s.total_deals || 0).toLocaleString()}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pipeline Value</div>
+        <div class="stat-value">${fmtCurrency(s.total_pipeline_value)}</div>
+        <div class="stat-sub">all stages</div>
+      </div>
+      <div class="stat-card c-red">
+        <div class="stat-label">Revenue at Risk</div>
+        <div class="stat-value">${fmtCurrency(s.revenue_at_risk) === '—' ? '$0' : fmtCurrency(s.revenue_at_risk)}</div>
+        <div class="stat-sub">active deal value</div>
+      </div>
+      <div class="stat-card c-green">
+        <div class="stat-label">AI Analyzed</div>
+        <div class="stat-value">${(s.deals_analyzed_by_ai || 0).toLocaleString()}</div>
+        <div class="stat-sub">deals with full AI review</div>
+      </div>
+    </div>
+
+    <div class="sum-grid">
+      <!-- Deals by stage -->
+      <div class="sum-card">
+        <div class="sum-card-title">Deals by Stage</div>
+        <div class="bchart">
+          ${stageOrder
+            .filter(st => stages[st] !== undefined)
+            .map(st => {
+              const count = stages[st] || 0;
+              const pct   = (count / maxStage * 100).toFixed(1);
+              return `<div class="brow">
+                <span class="brow-lbl">${esc(st)}</span>
+                <div class="btrack">
+                  <div class="bfill ${st}" style="width:${pct}%">
+                    ${count > maxStage * 0.12 ? count.toLocaleString() : ''}
+                  </div>
+                </div>
+                <span class="brow-val">${count.toLocaleString()}</span>
+              </div>`;
+            }).join('')}
+        </div>
+      </div>
+
+      <!-- Revenue by stage -->
+      <div class="sum-card">
+        <div class="sum-card-title">Revenue by Stage</div>
+        <div class="bchart">
+          ${stageOrder
+            .filter(st => (revByStage[st] || 0) > 0)
+            .sort((a, b) => (revByStage[b] || 0) - (revByStage[a] || 0))
+            .map(st => {
+              const val = revByStage[st] || 0;
+              const pct = (val / maxRev * 100).toFixed(1);
+              return `<div class="brow">
+                <span class="brow-lbl">${esc(st)}</span>
+                <div class="btrack">
+                  <div class="bfill ${st}" style="width:${pct}%">
+                    ${val > maxRev * 0.12 ? fmtCurrency(val) : ''}
+                  </div>
+                </div>
+                <span class="brow-val">${fmtCurrency(val)}</span>
+              </div>`;
+            }).join('') || `<p style="color:var(--text-3);font-size:12px;padding:8px 0;">
+              No revenue recorded for active stages.<br>
+              <span style="font-size:11px;">Revenue populates from Won deal values.</span>
+            </p>`}
+        </div>
+      </div>
+
+      <!-- Top high-risk deals -->
+      <div class="sum-card full">
+        <div class="sum-card-title">Top High-Risk Deals (risk &ge; 70)</div>
+        ${topRisk.length === 0
+          ? `<p style="color:var(--text-2);font-size:13px;text-align:center;padding:24px 0;">
+              ${S.pipeline
+                ? 'No deals currently have a risk score &ge; 70.'
+                : `Pipeline not loaded. <button id="go-pipeline" style="color:var(--blue);text-decoration:underline;font-size:13px;">Load Pipeline</button>`}
+            </p>`
+          : `<div class="risk-list">
+              ${topRisk.map((d, i) => `
+                <div class="rl-item" data-id="${d.opportunity_id}">
+                  <span class="rl-rank">#${i + 1}</span>
+                  <div class="rl-info">
+                    <div class="rl-acct">${esc(d.account)}</div>
+                    <div class="rl-sub">${esc(d.sales_agent)} &middot; ${esc(d.product)}</div>
+                  </div>
+                  <span class="schip ${d.deal_stage}" style="margin-right:8px;">${esc(d.deal_stage)}</span>
+                  <span class="rbadge ${riskCls(d.risk_score)}">${d.risk_score}</span>
+                </div>`).join('')}
+            </div>`}
+      </div>
+    </div>`;
+
+  // Top risk item clicks → switch to pipeline + open deal
+  $main.querySelectorAll('.rl-item[data-id]').forEach(el =>
+    el.addEventListener('click', () => {
+      switchView('pipeline');
+      setTimeout(() => openDeal(el.dataset.id), 60);
+    }));
+
+  document.getElementById('go-pipeline')?.addEventListener('click', () => switchView('pipeline'));
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Panel renders
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderPanelLoading() {
+  $panel.innerHTML = `
+    <div class="panel-hdr">
+      <div class="panel-hdr-left">
+        <div class="panel-oid">Loading&hellip;</div>
+        <div class="panel-acct">Running AI analysis</div>
+      </div>
+      <button class="panel-close" id="px" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="p-loading">
+      <div class="spinner"></div>
+      <p class="p-loading-txt">Claude is analyzing this deal&hellip;</p>
+    </div>`;
+  document.getElementById('px')?.addEventListener('click', closePanel);
+}
+
+function renderPanelError(msg) {
+  $panel.innerHTML = `
+    <div class="panel-hdr">
+      <div class="panel-hdr-left">
+        <div class="panel-oid">Error</div>
+        <div class="panel-acct">Analysis failed</div>
+      </div>
+      <button class="panel-close" id="px" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="err-state" style="padding:48px 24px;">
+      <div class="err-icon">&#x26A0;</div>
+      <div class="err-title">Could not load deal</div>
+      <p class="err-msg">${esc(msg)}</p>
+      <button class="retry-btn" id="panel-retry">Retry</button>
+    </div>`;
+  document.getElementById('px')?.addEventListener('click', closePanel);
+  document.getElementById('panel-retry')?.addEventListener('click', () => {
+    if (S.selectedId) { delete S.dealCache[S.selectedId]; loadDeal(S.selectedId); }
+  });
+}
+
+function renderPanel(deal) {
+  const sent  = deal.sentiment_score || {};
+  const label = sent.label || 'neutral';
+  const conf  = Math.round((sent.confidence || 0) * 100);
+  const ints  = (deal.interactions || [])
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  $panel.innerHTML = `
+    <div class="panel-hdr">
+      <div class="panel-hdr-left">
+        <div class="panel-oid">${esc(deal.opportunity_id)}</div>
+        <div class="panel-acct">${esc(deal.account)}</div>
+      </div>
+      <button class="panel-close" id="px" aria-label="Close">&#x2715;</button>
+    </div>
+
+    <div class="panel-body">
+
+      <!-- ── Risk gauge + key stats ──────────────────────────────────────── -->
+      <div class="gauge-row">
+        <div class="gauge-svg">${gauge(deal.risk_score || 0)}</div>
+        <div class="gauge-table">
+          <div class="gtr">
+            <span class="gtr-l">Stage</span>
+            <span class="gtr-v"><span class="schip ${deal.deal_stage}">${esc(deal.deal_stage)}</span></span>
+          </div>
+          <div class="gtr">
+            <span class="gtr-l">Close Date</span>
+            <span class="gtr-v">${fmtDate(deal.close_date)}</span>
+          </div>
+          <div class="gtr">
+            <span class="gtr-l">Deal Value</span>
+            <span class="gtr-v">${fmtCurrency(deal.close_value)}</span>
+          </div>
+          <div class="gtr">
+            <span class="gtr-l">Interactions</span>
+            <span class="gtr-v">${deal.interaction_count ?? ints.length}</span>
+          </div>
+          <div class="gtr">
+            <span class="gtr-l">Last Contact</span>
+            <span class="gtr-v">${fmtDate(deal.last_interaction_date)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Sentiment ───────────────────────────────────────────────────── -->
+      <div class="sent-section">
+        <div class="sec-title">AI Sentiment Analysis</div>
+        <div class="sent-row">
+          <span class="sent-label ${label}">${cap(label)}</span>
+          <div class="conf-track">
+            <div class="conf-fill ${label}" style="width:${conf}%"></div>
+          </div>
+          <span class="conf-pct">${conf}%</span>
+        </div>
+        ${sent.summary
+          ? `<p class="sent-summary">&ldquo;${esc(sent.summary)}&rdquo;</p>`
+          : ''}
+      </div>
+
+      <!-- ── Deal metadata ────────────────────────────────────────────────── -->
+      <div class="meta-grid">
+        <div class="meta-item">
+          <div class="meta-lbl">Sales Agent</div>
+          <div class="meta-val">${esc(deal.sales_agent || '—')}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-lbl">Manager</div>
+          <div class="meta-val">${esc(deal.manager || '—')}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-lbl">Product</div>
+          <div class="meta-val">${esc(deal.product || '—')}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-lbl">Region</div>
+          <div class="meta-val">${esc(deal.regional_office || '—')}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-lbl">Account Sector</div>
+          <div class="meta-val">${esc(deal.account_sector || '—')}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-lbl">Engage Date</div>
+          <div class="meta-val">${fmtDate(deal.engage_date)}</div>
+        </div>
+      </div>
+
+      <!-- ── Coaching recommendation ─────────────────────────────────────── -->
+      ${deal.coaching_recommendation ? `
+      <div class="coaching">
+        <div class="coaching-hdr">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="8" cy="8" r="7" stroke="#0070F2" stroke-width="1.5"/>
+            <path d="M8 5v4M8 11v.5" stroke="#0070F2" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          AI Coaching Recommendation
+        </div>
+        <div class="coaching-text">${renderMarkdown(deal.coaching_recommendation)}</div>
+      </div>` : ''}
+
+      <!-- ── Interactions ─────────────────────────────────────────────────── -->
+      <div class="sec-title" style="margin-bottom:12px;">
+        Interaction History (${ints.length})
+      </div>
+      ${ints.length === 0
+        ? `<p style="color:var(--text-2);font-size:13px;text-align:center;padding:32px 0;">
+            No interactions on record for this deal.
+          </p>`
+        : `<div class="tl">
+            ${ints.map(i => {
+              const isCall = i.type === 'call_transcript';
+              return `
+              <div class="tl-item">
+                <div class="tl-dot ${isCall ? 'call' : ''}">${isCall ? 'Call' : 'Mtg'}</div>
+                <div class="tl-content">
+                  <div class="tl-meta">
+                    <span class="tl-type ${i.type}">${isCall ? 'Call Transcript' : 'Meeting Note'}</span>
+                    <span class="tl-date">${fmtDate(i.date)}</span>
+                  </div>
+                  <p class="tl-text">${esc(i.content)}</p>
+                  ${i.participants?.length
+                    ? `<div class="tl-parts">${i.participants.map(p => esc(p)).join(' &middot; ')}</div>`
+                    : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>`}
+
+    </div>`;
+
+  document.getElementById('px')?.addEventListener('click', closePanel);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Skeleton + error helpers
+   ════════════════════════════════════════════════════════════════════════════ */
+function pipelineSkeleton() {
+  const cols = [38, 80, 120, 100, 90, 68, 80, 52, 64];
+  const row  = () => `<tr>${cols.map(w =>
+    `<td><div class="skel" style="width:${w}px;height:${w === 38 || w === 68 ? 20 : 13}px;${w === 38 || w === 68 ? 'border-radius:12px;' : ''}"></div></td>`
+  ).join('')}</tr>`;
+
+  return `
+    <div class="stats-bar">
+      ${Array(4).fill(0).map(() => `
+        <div class="stat-card">
+          <div class="skel skel-h" style="width:80px;margin-bottom:7px;"></div>
+          <div class="skel skel-lg" style="width:56px;"></div>
+        </div>`).join('')}
+    </div>
+    <div class="table-wrap">
+      <div class="table-hdr">
+        <div class="skel skel-h" style="width:130px;"></div>
+        <div class="skel" style="width:220px;height:30px;border-radius:4px;"></div>
+      </div>
+      <table>
+        <thead><tr>${['Risk','Deal ID','Account','Agent','Product','Stage','Close','Value','Sentiment']
+          .map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${Array(10).fill(0).map(row).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function errState(view) {
+  return `<div class="err-state">
+    <div class="err-icon">&#x26A0;&#xFE0F;</div>
+    <div class="err-title">Could not load ${view}</div>
+    <p class="err-msg">
+      ${esc(S.error[view] || 'An unknown error occurred.')}<br><br>
+      Make sure the DealPulse service is running on BTP, or run it locally with
+      <code style="background:var(--bg);padding:2px 5px;border-radius:3px;">npm start</code>.
+    </p>
+    <button class="retry-btn">Retry</button>
+  </div>`;
+}
+
+function bindRetry(fn) {
+  $main.querySelector('.retry-btn')?.addEventListener('click', fn);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Events
+   ════════════════════════════════════════════════════════════════════════════ */
+function setupEvents() {
+  $tabs.addEventListener('click', e => {
+    const t = e.target.closest('.tab');
+    if (t?.dataset.view) switchView(t.dataset.view);
+  });
+  $backdrop.addEventListener('click', closePanel);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && S.selectedId) closePanel();
+  });
+  // Close panel on resize if going mobile→desktop (avoid stuck backdrop)
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 1024) $backdrop.classList.remove('on');
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Init
+   ════════════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  setupEvents();
+  loadPipeline();
+});
+</script>
+</body>
+</html>
