@@ -1,267 +1,207 @@
 # DealPulse — AI Deal Health Monitor for SAP Sales Cloud
 
-> **Lead-to-Cash companion to SkillPilot (Hire-to-Retire).**
-> Same SAP BTP stack. Second process pillar.
+> **The Lead-to-Cash companion to SkillPilot.** Same BTP architecture pattern,
+> second process pillar — demonstrating that one Domain Lead motion repeats
+> across the entire SAP process landscape.
+
+**Live on SAP BTP Cloud Foundry:**
+`https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com/api/health`
 
 ---
 
-## Business Problem
+## The Business Problem
 
-Sales reps miss at-risk deals until it's too late.
+Sales managers don't find out a deal is at risk until it's already lost.
+Meeting notes sit in CRM. Call transcripts go unread. By the time a rep
+says "waiting on client," three weeks of momentum have already evaporated.
 
-By the time a manager reviews a stalled opportunity in SAP Sales Cloud, the deal has already gone cold — the champion changed roles, the budget was frozen, or a competitor moved in. Traditional CRM dashboards show deal *stage* but not deal *health*. A rep can have 20 active opportunities all showing "Engaging" while half of them haven't had a meaningful interaction in six weeks.
+Meanwhile, SAP Sales Cloud customers on BTP EA or subscription models are
+sitting on committed capacity with no AI activation story for their next QBR.
+The question every Customer Success team faces six months before renewal:
+**what's the fastest path from unused credits to demonstrable transformation?**
 
-**DealPulse fixes this by surfacing risk before it becomes loss.**
-
----
-
-## What the AI Does
-
-| Signal | Mechanism |
-|--------|-----------|
-| **Sentiment Analysis** | Claude reads the last 3 meeting notes / call transcripts per deal and returns `positive / neutral / negative` with a confidence score |
-| **Risk Scoring** | Deterministic model combining sentiment, days since last interaction, deal stage, and close date proximity → 0–100 risk score |
-| **Coaching Recommendations** | Claude generates a single, specific action paragraph for the sales rep based on the deal's full context |
+DealPulse is the answer for the Lead-to-Cash process area.
 
 ---
 
-## Architecture
+## What DealPulse Does
 
+An AI-powered deal health monitor that reads meeting notes and call transcripts
+from SAP Sales Cloud, runs sentiment analysis on every customer interaction,
+scores each deal for risk, and gives sales reps specific coaching on what to
+do next — before the deal is lost.
 ```
-SAP Sales Cloud (CRM events)
-        │
-        ▼
- CAP Node.js Service (BTP Cloud Foundry)
-        │
-        ├── GET /api/pipeline    ← risk-sorted deal list
-        ├── GET /api/deal/:id    ← full AI analysis + coaching
-        ├── GET /api/summary     ← pipeline stats
-        └── GET /api/health      ← liveness check
-        │
-        ▼
- Anthropic API (dev) → SAP AI Core Generative AI Hub (prod)
-```
+Sales Manager: "Show me which deals are about to go cold."
 
-**Tech Stack:**
-- **Runtime:** Node.js 18+ on SAP BTP Cloud Foundry
-- **Framework:** Express (standalone service alongside CAP)
-- **AI (dev):** Anthropic Claude Haiku via `@anthropic-ai/sdk`
-- **AI (prod):** SAP AI Core Generative AI Hub (`@sap-ai-sdk/foundation-models`)
-- **Data:** CSV files → in-memory store (prototype); SAP HANA Cloud (production)
-- **Auth (prod):** XSUAA service binding
+DealPulse: Risk score 83 — Cancity (MG Advanced)
+           Sentiment: Negative · 92% confidence
+           "Deal momentum has stalled with three consecutive weeks of no
+           committed next steps, internal champion role change, and 30+
+           days of no meaningful contact requiring manager escalation."
 
----
-
-## Project Structure
-
-```
-dealpulse/
-├── db/
-│   └── data/
-│       ├── sales_pipeline.csv      # 8,800 opportunities
-│       ├── accounts.csv            # 85 accounts
-│       ├── products.csv            # product catalog
-│       ├── sales_teams.csv         # agent → manager → region
-│       └── interactions.json       # generated meeting notes + call transcripts
-├── scripts/
-│   └── generate-interactions.js   # synthetic interaction generator
-├── srv/
-│   └── dealpulse-service.js       # main Express service
-├── .env.example
-├── manifest.yml                   # BTP Cloud Foundry deployment
-└── readme.md
+           Coaching: "Stop waiting passively. Your champion can't sponsor
+           you anymore — identify who replaced them and schedule a
+           15-minute call within 48 hours. Budget freezes are temporary;
+           deprioritization is a priority problem."
 ```
 
 ---
 
-## Quick Start
+## Why This Use Case for BTP Consumption
 
-### 1. Clone and install
+One DealPulse deployment drives consumption across multiple BTP services:
 
+| BTP Service | Role in DealPulse |
+|---|---|
+| SAP AI Core (Generative AI Hub) | Sentiment analysis + coaching via Claude Sonnet |
+| SAP HANA Cloud | Deal records, interaction history, risk score cache |
+| Cloud Foundry Runtime | Application hosting |
+| SAP AI Launchpad | Model monitoring and governance |
+
+At enterprise scale (500 sales reps × 10 deals each = 5,000 deals analyzed
+per cycle), this activates committed BTP capacity at meaningful volume —
+turning a renewal risk into a transformation case study.
+
+---
+
+## Where It Sits in Lead-to-Cash
+```
+Lead → Qualify → [ ENGAGE ] → [ CLOSE ] → Invoice → Cash
+                      ▲              ▲
+               DealPulse lives here
+               reading meeting notes + call transcripts
+               from SAP Sales Cloud via released OData APIs
+               never touching the core (Clean Core principle)
+```
+
+---
+
+## FRE Maturity Ladder
+
+| Level | Capability | DealPulse Stage |
+|---|---|---|
+| L1 | Manual CRM data entry, no AI | Baseline (pre-DealPulse) |
+| L2 | AI sentiment + risk scoring per deal | **Current build** |
+| L3 | Predictive close probability + pipeline forecasting | Next iteration |
+| L4 | AI agents that auto-draft follow-up emails | Agentic layer |
+| L5 | Cross-system: Sales Cloud + S/4HANA AR + Ariba contracts | Full L2C intelligence |
+
+---
+
+## Technical Architecture
+```
+┌─────────────────────────────────────────────────────────┐
+│              Dashboard UI (Fiori-inspired)               │
+│   Pipeline View · Deal Detail Panel · Summary View       │
+└───────────────────────┬─────────────────────────────────┘
+                        │ REST API calls
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│              DealPulse Service (CAP Node.js)             │
+│                                                          │
+│  Two-speed architecture:                                 │
+│  FAST PATH: Deterministic risk scoring (instant)         │
+│    Deal stage + days stalled + sentiment hint            │
+│    → risk_score 0-100, no API call needed                │
+│                                                          │
+│  AI PATH: On-demand per deal (Claude API)                │
+│    Interaction text → sentiment analysis                 │
+│    → risk score refinement                               │
+│    → coaching recommendation                             │
+│    → cached after first call                             │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│    Claude Sonnet (claude-sonnet-4-20250514)              │
+│                                                          │
+│  Dev:  Anthropic API (direct)                            │
+│  Prod: SAP Generative AI Hub via AI Core                 │
+│        + XSUAA token exchange                            │
+│        + SAP AI ethics guardrails                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Data Layer** (mirrors SAP Sales Cloud OData API structure):
+- 8,800 real B2B deal records (Maven Analytics CRM dataset)
+- 85 accounts with sector, revenue, employee data
+- 7 products across GTX and MG series
+- 35 sales agents across Central, East, West regions
+- 5,398 synthetic meeting notes and call transcripts
+
+---
+
+## Live Demo
 ```bash
-git clone <repo>
-cd dealpulse
+# Health check
+curl https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com/api/health
+
+# Pipeline summary
+curl https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com/api/summary
+
+# Full AI analysis for a specific deal
+curl https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com/api/deal/OLVI7L8M
+
+# Full pipeline with risk scores
+curl https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com/api/pipeline
+```
+
+---
+
+## Local Setup
+```bash
+git clone https://github.com/harsharao85/Dealpulse.git
+cd Dealpulse
 npm install
-```
-
-### 2. Configure environment
-
-```bash
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
-```
-
-### 3. Generate interactions (if not already present)
-
-```bash
-npm run generate:interactions
-# Generates ~5,400 synthetic meeting notes + call transcripts
-# into db/data/interactions.json
-```
-
-### 4. Start the service
-
-```bash
+# Add your ANTHROPIC_API_KEY to .env
 npm start
-# or, for auto-reload during development:
-npm run dev
-```
 
-Service runs at `http://localhost:3001`.
-
----
-
-## API Reference
-
-### `GET /api/health`
-Service liveness check.
-
-```json
-{
-  "status": "ok",
-  "service": "DealPulse",
-  "deals_loaded": 2149,
-  "cache_size": 12
-}
+# Run the UI
+npx serve ui
+# Open http://localhost:4000
 ```
 
 ---
 
-### `GET /api/pipeline`
-All deals with deterministic risk scores, sorted by risk (highest first). Fast — no Claude calls.
+## Production Path (SAP BTP)
 
-```json
-{
-  "count": 2149,
-  "deals": [
-    {
-      "opportunity_id": "A1B2C3D4",
-      "sales_agent": "Moses Frase",
-      "account": "Acme Corporation",
-      "deal_stage": "Engaging",
-      "close_date": "2026-02-15",
-      "close_value": 12500,
-      "risk_score": 87,
-      "sentiment_label": "negative",
-      "last_interaction_date": "2026-01-10"
-    }
-  ]
-}
-```
+1. **Swap AI layer**: Replace Anthropic API with SAP AI Core service binding + XSUAA
+2. **Swap data source**: Replace mock CSVs with live SAP Sales Cloud OData APIs
+3. **Swap cache**: Replace in-memory cache with HANA Cloud persistence
+4. **Add auth**: Enable XSUAA for enterprise SSO
+5. **Add webhooks**: Trigger re-analysis when new interactions are logged in Sales Cloud
 
-Append `?full=true` to run full Claude analysis on every deal (slower — use for demos).
+Architecture is identical. Only the service bindings change.
 
 ---
 
-### `GET /api/deal/:id`
-Full deal detail with AI sentiment analysis, risk score, and coaching recommendation.
-Results are cached after the first call.
+## The Two-Project Story
 
-```json
-{
-  "opportunity_id": "A1B2C3D4",
-  "sales_agent": "Moses Frase",
-  "account": "Acme Corporation",
-  "account_sector": "technology",
-  "deal_stage": "Engaging",
-  "close_date": "2026-02-15",
-  "close_value": 12500,
-  "risk_score": 87,
-  "sentiment_score": {
-    "label": "negative",
-    "confidence": 0.82,
-    "summary": "Client has gone silent and mentioned a competing offer."
-  },
-  "coaching_recommendation": "Reach out immediately to re-engage the economic buyer ...",
-  "interactions": [
-    {
-      "type": "call_transcript",
-      "date": "2026-01-10",
-      "content": "..."
-    }
-  ]
-}
-```
+DealPulse and SkillPilot share identical BTP architecture patterns across
+two different SAP process pillars:
+
+| | SkillPilot | DealPulse |
+|---|---|---|
+| Process | Hire-to-Retire | Lead-to-Cash |
+| SAP System | SuccessFactors Learning | SAP Sales Cloud |
+| AI Capability | RAG conversational search | Sentiment + risk scoring |
+| Business Problem | Migration change management | At-risk deal detection |
+| BTP Stack | CAP + CF + AI Core + HANA | CAP + CF + AI Core + HANA |
+| FRE Level | L2 | L2 |
+
+Same platform. Same architecture. Different process pillars. This is the
+repeatable pattern a Domain Lead brings to every customer conversation.
 
 ---
 
-### `GET /api/summary`
-Pipeline-level stats. Includes top high-risk deals from the AI analysis cache.
+## About This Build
 
-```json
-{
-  "total_deals": 2149,
-  "total_pipeline_value": 4821000,
-  "revenue_at_risk": 1340000,
-  "avg_risk_score": 52,
-  "deals_by_stage": { "Engaging": 1589, "Prospecting": 500, "Won": 30, "Lost": 30 },
-  "top_high_risk_deals": [...]
-}
-```
+Built by **Harsha Rao** alongside SkillPilot as a proof-of-concept for the
+SAP BTP Customer Success Domain Lead role. The goal: demonstrate that the
+BTP AI architecture pattern is not a one-off — it repeats across the SAP
+process landscape and scales to any customer conversation.
 
----
-
-## Deploying to SAP BTP (Cloud Foundry)
-
-```bash
-# Login to BTP
-cf login -a https://api.cf.us10-001.hana.ondemand.com
-
-# Set your API key as a user-provided service (keeps it out of manifest.yml)
-cf cups dealpulse-ai-key -p '{"ANTHROPIC_API_KEY":"your-key-here"}'
-
-# Push the app
-cf push
-
-# Bind the credential service
-cf bind-service dealpulse dealpulse-ai-key
-cf restage dealpulse
-```
-
-Live URL: `https://dealpulse-hr.cfapps.us10-001.hana.ondemand.com`
-
----
-
-## Production AI Swap: Claude → SAP AI Core
-
-In production, replace the Anthropic client with the SAP AI Core SDK:
-
-```js
-// Replace in srv/dealpulse-service.js:
-
-// DEV (current)
-const Anthropic = require('@anthropic-ai/sdk');
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-// PROD (SAP AI Core)
-const { AzureOpenAiChatClient } = require('@sap-ai-sdk/foundation-models');
-const client = new AzureOpenAiChatClient({ modelName: 'gpt-4o' });
-// or use Anthropic Claude via AI Core:
-// const client = new AnthropicClient({ modelName: 'claude-3-haiku' });
-```
-
-Credentials come from the `VCAP_SERVICES` environment variable injected by BTP.
-
----
-
-## Relationship to SkillPilot
-
-| Dimension | SkillPilot | DealPulse |
-|-----------|------------|-----------|
-| **SAP Process** | Hire-to-Retire | Lead-to-Cash |
-| **SAP Module** | SuccessFactors / LMS | SAP Sales Cloud |
-| **BTP Stack** | CAP + HANA + AI Core | CAP + Express + AI Core |
-| **AI Use Case** | Skill gap analysis + learning paths | Deal health + coaching |
-| **User** | HR / L&D teams | Sales managers / reps |
-
-Together they demonstrate AI-augmented operations across two of SAP's core process pillars on a shared BTP platform — the same pitch relevant to Accenture LearnVantage's enterprise SAP practice.
-
----
-
-## Roadmap (UI Phase)
-
-- React + SAP UI5 Web Components dashboard
-- Fiori-aligned design tokens
-- Deal health heatmap by rep / region
-- Manager coaching queue (sorted by revenue at risk)
-- SAP Sales Cloud side-panel embed (BTP Extension Suite)
+**Stack**: CAP Node.js · SAP BTP Cloud Foundry · Claude Sonnet · 8,800 real CRM records
+**Deployed**: SAP BTP Trial (US East, AWS) · `cfapps.us10-001.hana.ondemand.com`
+**Companion project**: [SkillPilot](https://github.com/harsharao85/BTP_SkillPilot_Successfactors) — Hire-to-Retire
